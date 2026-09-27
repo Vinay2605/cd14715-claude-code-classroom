@@ -12,10 +12,13 @@ import {
   ReviewReport,
   ReviewReportJSONSchema,
 } from './types/report-types';
+import { RateLimiter, globalRateLimiter } from './utils';
 
 export interface OrchestratorOptions {
   model?: string;
   cwd?: string;
+  rateLimiter?: RateLimiter;
+  estimatedTokens?: number;
 }
 
 export class CodeReviewOrchestrator {
@@ -42,59 +45,68 @@ export class CodeReviewOrchestrator {
       'refactoring-suggester': refactoringSuggester,
     };
 
-    const response = query({
-      prompt,
-      options: {
-        model: this.options.model,
-        cwd: this.options.cwd,
-        mcpServers: mcpServersConfig,
-        agents,
-        allowedTools: [
-          'Task',
-          'Read',
-          'Grep',
-          'Glob',
-        ],
-        outputFormat: {
-          type: 'json_schema',
-          schema: resultSchema,
+    const rateLimiter = this.options.rateLimiter ?? globalRateLimiter;
+    const estimatedTokens = this.options.estimatedTokens ?? 1000;
+
+    await rateLimiter.acquire(estimatedTokens);
+
+    try {
+      const response = query({
+        prompt,
+        options: {
+          model: this.options.model,
+          cwd: this.options.cwd,
+          mcpServers: mcpServersConfig,
+          agents,
+          allowedTools: [
+            'Task',
+            'Read',
+            'Grep',
+            'Glob',
+          ],
+          outputFormat: {
+            type: 'json_schema',
+            schema: resultSchema,
+          },
         },
-      },
-    });
+      });
 
-    let structuredOutput: unknown;
+      let structuredOutput: unknown;
 
-    for await (const message of response) {
-      if (
-        message.type === 'result' &&
-        'structured_output' in message
-      ) {
-        structuredOutput = message.structured_output;
+      for await (const message of response) {
+        if (
+          message.type === 'result' &&
+          'structured_output' in message
+        ) {
+          structuredOutput = message.structured_output;
+        }
       }
+
+      if (structuredOutput === undefined) {
+        throw new Error(
+          'Code review completed without a structured output result.'
+        );
+      }
+
+      const validated = ReviewReportSchema.safeParse(structuredOutput);
+
+      if (!validated.success) {
+        throw new Error(
+          `Invalid review report: ${validated.error.message}`
+        );
+      }
+
+      const report = validated.data;
+
+      return {
+        ...report,
+        metadata: {
+          ...report.metadata,
+          duration: Date.now() - startedAt,
+        },
+      };
+    } finally {
+      rateLimiter.release();
     }
-
-    if (structuredOutput === undefined) {
-      throw new Error(
-        'Code review completed without a structured output result.'
-      );
-    }
-
-    const validated = ReviewReportSchema.safeParse(structuredOutput);
-
-    if (!validated.success) {
-      throw new Error(
-        `Invalid review report: ${validated.error.message}`
-      );
-    }
-
-    const report = validated.data;
-
-    return {
-      ...report,
-      metadata: {
-        ...report.metadata,
-        duration: Date.now() - startedAt,
-      },
-    };
   }
 }
