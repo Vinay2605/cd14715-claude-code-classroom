@@ -1,5 +1,7 @@
 import { query } from '@anthropic-ai/claude-agent-sdk';
 
+import { globalRateLimiter, RateLimiter } from './utils';
+
 import { mcpServersConfig } from './config/mcp.config';
 import {
   codeQualityAnalyzer,
@@ -16,6 +18,8 @@ import {
 export interface OrchestratorOptions {
   model?: string;
   cwd?: string;
+  rateLimiter?: RateLimiter;
+  estimatedTokens?: number;
 }
 
 export class CodeReviewOrchestrator {
@@ -31,8 +35,13 @@ export class CodeReviewOrchestrator {
     prNumber: number
   ): Promise<ReviewReport> {
     const startedAt = Date.now();
+    const rateLimiter = this.options.rateLimiter ?? globalRateLimiter;
+    const estimatedTokens = this.options.estimatedTokens ?? 1000;
 
-    const prompt = buildOrchestratorPrompt(owner, repo, prNumber);
+    await rateLimiter.acquire(estimatedTokens);
+
+    try {
+      const prompt = buildOrchestratorPrompt(owner, repo, prNumber);
 
     const resultSchema = ReviewReportJSONSchema;
 
@@ -54,6 +63,9 @@ export class CodeReviewOrchestrator {
           'Read',
           'Grep',
           'Glob',
+          'mcp__github__get_pull_request',
+          'mcp__github__get_pull_request_files',
+          'mcp__github__get_file_contents',
         ],
         outputFormat: {
           type: 'json_schema',
@@ -89,12 +101,15 @@ export class CodeReviewOrchestrator {
 
     const report = validated.data;
 
-    return {
-      ...report,
-      metadata: {
-        ...report.metadata,
-        duration: Date.now() - startedAt,
-      },
-    };
+      return {
+        ...report,
+        metadata: {
+          ...report.metadata,
+          duration: Date.now() - startedAt,
+        },
+      };
+    } finally {
+      rateLimiter.release();
+    }
   }
 }

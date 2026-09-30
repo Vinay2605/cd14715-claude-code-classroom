@@ -31,5 +31,5 @@ Estimate the coverage of the relevant changed code from 0 to 100.
 Do not invent tests or claim coverage that cannot be supported by the available code and test files. Base your analysis on the actual pull request contents.
 
 Return your analysis in the structured format requested by the orchestrator.`,
-  tools: ['Read', 'Grep', 'Glob'],
+  tools: ['Read', 'Grep', 'Glob', 'Skill'],
 };

@@ -64,6 +64,17 @@ async function main() {
     console.log('🔐 Using Anthropic API authentication');
   }
 
+  // Validate GitHub authentication for the GitHub MCP server
+  const githubToken = process.env.GITHUB_TOKEN;
+
+  if (!githubToken) {
+    console.error('GITHUB_TOKEN is required to fetch pull request data.');
+    console.error(
+      'Create a GitHub token with the required repository permissions and add it to the environment.'
+    );
+    process.exit(1);
+  }
+
   // Validate model
   const model = process.env.ANTHROPIC_MODEL;
 

@@ -32,5 +32,5 @@ Prefer practical improvements over stylistic changes that provide little value. 
 Base suggestions on the actual pull request contents and do not invent code that is not present.
 
 Return your analysis in the structured format requested by the orchestrator.`,
-  tools: ['Read', 'Grep', 'Glob'],
+  tools: ['Read', 'Grep', 'Glob', 'Skill'],
 };

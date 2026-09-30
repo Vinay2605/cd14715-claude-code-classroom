@@ -29,5 +29,5 @@ For every issue you identify:
 Do not invent issues when the code does not support them. Base findings on the actual pull request files and code.
 
 Return your analysis in the structured format requested by the orchestrator.`,
-  tools: ['Read', 'Grep', 'Glob'],
+  tools: ['Read', 'Grep', 'Glob', 'Skill'],
 };
